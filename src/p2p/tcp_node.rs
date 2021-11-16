@@ -1,14 +1,22 @@
 use crate::HostStuffModule;
-use crate::config::HotStuffConf;
+use crate::config::{HotStuffConf, P2PConf};
+use tokio::net::{TcpListener, TcpStream};
+use std::collections::HashMap;
+
 
 // tcp协议的P2P节点实现
-struct TCPNode {
+struct TCPNode<'a> {
+    cfg : &'a P2PConf,
+    peers: HashMap<String,TcpStream>
 }
 
-impl HostStuffModule for TCPNode {
-    type service = Self;
+impl<'a> HostStuffModule for TCPNode<'a> {
+    type Service = Self;
     fn new(cfg :&HotStuffConf) -> Self {
-        return TCPNode{};
+        return TCPNode{
+            cfg: &cfg.p2p_cfg,
+            peers: HashMap::new(),
+        };
     }
 
     // todo::

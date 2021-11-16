@@ -5,8 +5,8 @@ use anyhow::Error;
 
 
 pub trait HostStuffModule {
-    type service;
-    fn new(cfg :&HotStuffConf) -> Self::service;
+    type Service;
+    fn new<'b>(cfg :&'b HotStuffConf) -> Self::Service;
 
     // 启动
     fn start(&mut self) -> Result<(), Error>;
