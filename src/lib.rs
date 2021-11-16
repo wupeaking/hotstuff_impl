@@ -4,9 +4,9 @@ use config::HotStuffConf;
 use anyhow::Error;
 
 
-pub trait HostStuffModule {
+pub trait HostStuffModule<'b> {
     type Service;
-    fn new<'b>(cfg :&'b HotStuffConf) -> Self::Service;
+    fn new(cfg :&'b HotStuffConf) -> Self::Service;
 
     // 启动
     fn start(&mut self) -> Result<(), Error>;

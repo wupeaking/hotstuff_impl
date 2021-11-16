@@ -20,6 +20,7 @@ pub struct BroadcastMsg {
     pub msg: Vec<u8>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Peer {
     pub id: String,      // 定义peerid  每个peerid应该是唯一的
     pub address: String, // 地址
