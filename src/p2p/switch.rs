@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 pub type OnReceive = fn(model_id: String, msg: &[u8], p: &Peer);
 
 pub trait SwitcherI {
-    fn broadcast(&self, model_id: String, msg: &BroadcastMsg) -> Error;
-    fn broadcast_to_peer(&self, model_id: String, msg: &BroadcastMsg, p: &Peer) -> Error;
-    fn broadcast_except_peer(&self, model_id: String, msg: &BroadcastMsg, p: &Peer) -> Error;
-    fn remove_peer(&mut self, p: &Peer) -> Error;
+    fn broadcast(&self, model_id: String, msg: &BroadcastMsg) -> Result<(), Error>;
+    fn broadcast_to_peer(&self, model_id: String, msg: &BroadcastMsg, p: &Peer) -> Result<(), Error>;
+    fn broadcast_except_peer(&self, model_id: String, msg: &BroadcastMsg, p: &Peer) -> Result<(), Error>;
+    fn remove_peer(&mut self, p: &Peer) -> Result<(), Error>;
 
-    fn register_receive_callback(&mut self, model_id: &str, call_back: OnReceive) -> Error;
+    fn register_receive_callback(&mut self, model_id: &str, call_back: OnReceive) -> Result<(), Error>;
 }
 
 #[derive(Serialize, Deserialize)]
