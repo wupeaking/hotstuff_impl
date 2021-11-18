@@ -16,7 +16,7 @@ pub struct P2PConf {
 }
 
 impl HotStuffConf {
-    pub fn new() -> Result<Self, Error> {
+    pub fn new() -> Result<Box<Self>, Error> {
         let f = std::fs::File::open("src/config.yaml")?;
         let cfg = serde_yaml::from_reader(f)?;
         Ok(cfg)

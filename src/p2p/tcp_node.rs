@@ -27,11 +27,13 @@ impl<'a, 'b: 'a> HostStuffModule<'b> for TCPNode<'a> {
     // todo::
      fn start(&mut self) -> Result<(), anyhow::Error> {
         let addr = self.cfg.listen_addr.clone();
-        tokio::spawn(async {
+        use std::sync::Arc;
+        let this = Arc::new(self);
+        tokio::spawn(async move {
             let listener = TcpListener::bind(addr).await.unwrap();
             loop {
                 let (socket, _) = listener.accept().await.unwrap();
-                self.process_stream(socket);
+                this.process_stream(socket);
             }
         });
 
@@ -126,8 +128,19 @@ mod tests {
     fn tcpnode_new_work() {
         log::set_max_level(log::LevelFilter::Debug);
         let cfg = HotStuffConf::new().unwrap();
+
         let node = TCPNode::new(&cfg);
         info!("tcp node: {:?}", node);
         // println!("tcp node: {:?}", node);
+    }
+
+    #[test]
+    fn tcpnode_start_work() {
+        log::set_max_level(log::LevelFilter::Debug);
+        let cfg_box = HotStuffConf::new().unwrap();
+
+        let mut node = TCPNode::new(&cfg_box);
+
+        node.start().unwrap();
     }
 }
