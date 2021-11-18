@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "model";
+option go_package = "./;model";
+
+enum MessageType {
+    InValid = 0;
+    NewView = 1;
+    Prepare = 2;
+    PreCommit = 3;
+    Commit = 4;
+}
+
+
+// 状态机流转列表
+enum States {
+    NotStartd = 0;
+    Preparing = 1;
+    PreCommiting = 2;
+    Commiting = 3;
+    Deciding = 4;
+}
+
+message SignPairs {
+    // 签名公钥
+    bytes signer_id = 1;
+    // 签名内容
+    bytes sign  = 2;
+}
+
+message HotstuffMessage {
+        // Type of the message
+        MessageType type = 1;
+        // View number
+        uint64 view = 2;
+        HotstuffNode node = 6;
+        // partialSig 该字段通常用于保存签名 tsign(<type, view, node>)
+        SignPairs partialSig = 3; 
+        QC justify = 4;
+}
+
+message HotstuffNode {
+    string prev_block = 1;
+    // 区块链的hash值 
+    string block_id = 2;
+    // 主验证者公钥 leader 公钥
+    bytes signer_id = 3;
+    // 内容签名
+    bytes sign = 7;
+
+    // 以UTC时间为准
+    uint64 time_stamp = 4;
+    uint64 block_num = 5;
+    // 交易列表 todo:: 为了简化 改为cmd 
+    repeated CMD cmds = 6;
+    // 视图编号
+    uint64 view = 10;
+}
+
+message CMD {
+    string instruction = 1;
+    repeated string args = 2;
+}
+
+// Quorum certificates
+message QC {
+    MessageType type = 1;
+    uint64 view = 2;
+    HotstuffNode node = 3;
+    // n-f 个消息签名组合 partialSig 必须是当前视图 相同消息类型
+    repeated SignPairs partialSigs = 4;
+    // tsign(<type, view, node>, {partialSigs})
+    SignPairs qcSig = 5;
+}
+
+message verifier {
+    bytes publick_key = 1;
+    bytes private_key = 2;
+    int32 seq_num = 3;
+}
+
+// protoc --go_out=./   -I . message.proto
