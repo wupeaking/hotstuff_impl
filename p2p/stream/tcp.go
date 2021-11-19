@@ -57,12 +57,41 @@ func (ts *TCPStream) Start() error {
 
 func (ts *TCPStream) Stop() error {
 	// TODO::
-
+	ts.listen.Close()
 	return nil
 }
 
-func (ts *TCPStream) handleConnect(con net.Conn) error {
-	return nil
+func (ts *TCPStream) handleConnect(con net.Conn) {
+
+}
+
+/*
+数据帧格式定义
+magic num: 0x08 0x09
+num len: [byte*4]
+data [...]
+crc32 [word*1]
+
+data 格式：
+json(BroadcastMsg)
+*/
+// func (ts *TCPStream) decodeData(fd io.Reader) (*p2p.BroadcastMsg, error) {
+// 	magic := make([]byte, 0, 2)
+// 	_, err := io.ReadFull(fd, magic)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	nums := make([]byte, 0, 4)
+// 	_, err := io.ReadFull(fd, nums)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// }
+
+// 定义处理p2p模块的消息结构
+type P2PMsg struct {
+	PeerID string
 }
 
 // Close the listener when the application closes.
