@@ -10,8 +10,10 @@ import (
 )
 
 type Configuration struct {
-	Veridiers []*model.Verifier `yaml:"veridiers"`
-	Peers     []p2p.Peer        ``
+	Veridiers   []*model.Verifier
+	Peers       []p2p.Peer
+	CurVeridier *model.Verifier
+	CurSeqNum   int
 }
 
 type Cfg struct {
@@ -39,5 +41,46 @@ func NewConfiguration() *Configuration {
 		panic(err)
 	}
 	pubKey := cryptogo.PublicKey2Hex(&pri.PublicKey)
-	return &Configuration{}
+
+	retCfg := &Configuration{
+		Veridiers: make([]*model.Verifier, 0, len(cfg.Veridiers)),
+		Peers:     make([]p2p.Peer, 0, len(cfg.Veridiers)),
+		CurSeqNum: -1,
+	}
+	for i, v := range cfg.Veridiers {
+		pubBytes, err := cryptogo.Hex2Bytes(v.PublickKey)
+		if err != nil {
+			panic(err)
+		}
+		priBytes, err := cryptogo.Hex2Bytes(v.PrivateKey)
+		if err != nil {
+			panic(err)
+		}
+		if v.Address == "" {
+			panic("address is empty")
+		}
+		retCfg.Veridiers = append(retCfg.Veridiers, &model.Verifier{
+			PublickKey: pubBytes,
+			PrivateKey: priBytes,
+			SeqNum:     int32(i),
+		})
+		retCfg.Peers = append(retCfg.Peers, p2p.Peer{
+			ID:      v.PublickKey,
+			Address: v.Address,
+		})
+
+		if v.PublickKey == pubKey {
+			retCfg.CurVeridier = &model.Verifier{
+				PublickKey: pubBytes,
+				PrivateKey: priBytes,
+				SeqNum:     int32(i),
+			}
+		}
+	}
+
+	if retCfg.CurVeridier == nil {
+		panic("未指定当前验证者")
+	}
+
+	return retCfg
 }
