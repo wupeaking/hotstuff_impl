@@ -14,6 +14,7 @@ type Configuration struct {
 	Peers       []p2p.Peer
 	CurVeridier *model.Verifier
 	CurSeqNum   int
+	ListenAddr  string
 }
 
 type Cfg struct {
@@ -81,6 +82,7 @@ func NewConfiguration() *Configuration {
 	if retCfg.CurVeridier == nil {
 		panic("未指定当前验证者")
 	}
+	retCfg.ListenAddr = cfg.ListenAddr
 
 	return retCfg
 }
