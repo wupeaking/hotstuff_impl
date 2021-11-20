@@ -1,6 +1,8 @@
 package stream
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"net"
@@ -13,9 +15,10 @@ import (
 )
 
 type TCPStream struct {
-	peers    *p2p.PeerBooks
-	listen   net.Listener
-	peerCons map[string]io.ReadWriteCloser
+	peers       *p2p.PeerBooks
+	listen      net.Listener
+	peerCons    map[string]io.ReadWriteCloser
+	msgCallBack map[string]p2p.OnReceive
 	sync.RWMutex
 }
 
@@ -62,48 +65,136 @@ func (ts *TCPStream) Stop() error {
 }
 
 func (ts *TCPStream) handleConnect(con net.Conn) {
+	// 如果已经存在连接 则关闭此连接
 
+	msg, err := ts.unpackageData(bufio.NewReader(con))
+	if err != nil {
+		fmt.Printf("读取消息出错, err: %s\n", err.Error())
+		con.Close()
+		return
+	}
+
+	ts.RLock()
+	msgCB := ts.msgCallBack[msg.ModelID]
+	ts.RUnlock()
+	if msgCB == nil {
+		fmt.Println("未知的model id")
+		con.Close()
+		return
+	}
+	go msgCB(msg.ModelID, msg.Msg, &p2p.Peer{ID: msg.PeerID})
+
+	ts.Lock()
+	_, exist := ts.peerCons[msg.PeerID]
+	if exist {
+		con.Close()
+		ts.Unlock()
+		return
+	}
+	ts.peerCons[msg.PeerID] = con
+	ts.Unlock()
+
+	// 一直读取消息
+	for {
+		msg, err := ts.unpackageData(bufio.NewReader(con))
+		if err != nil {
+			fmt.Printf("读取消息出错, err: %s\n", err.Error())
+			con.Close()
+			return
+		}
+		ts.RLock()
+		msgCB := ts.msgCallBack[msg.ModelID]
+		ts.RUnlock()
+		if msgCB == nil {
+			fmt.Println("未知的model id")
+			continue
+		}
+		go msgCB(msg.ModelID, msg.Msg, &p2p.Peer{ID: msg.PeerID})
+	}
 }
 
-/*
-数据帧格式定义
-magic num: 0x08 0x09
-num len: [byte*4]
-data [...]
-crc32 [word*1]
+var _ p2p.SwitcherI = &TCPStream{}
 
-data 格式：
-json(BroadcastMsg)
-*/
-// func (ts *TCPStream) decodeData(fd io.Reader) (*p2p.BroadcastMsg, error) {
-// 	magic := make([]byte, 0, 2)
-// 	_, err := io.ReadFull(fd, magic)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	nums := make([]byte, 0, 4)
-// 	_, err := io.ReadFull(fd, nums)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// }
-
-// 定义处理p2p模块的消息结构
-type P2PMsg struct {
-	PeerID string
+// 向所有的节点广播消息
+func (ts *TCPStream) Broadcast(modelID string, msg *p2p.BroadcastMsg) error {
+	peers := ts.peers.AllPeers()
+	for _, peer := range peers {
+		ts.BroadcastToPeer(modelID, msg, peer)
+	}
+	return nil
 }
 
-// Close the listener when the application closes.
-// defer l.Close()
-// fmt.Println("Listening on " + CONN_HOST + ":" + CONN_PORT)
-// for {
-// 	// Listen for an incoming connection.
-// 	conn, err := l.Accept()
-// 	if err != nil {
-// 		fmt.Println("Error accepting: ", err.Error())
-// 		os.Exit(1)
-// 	}
-// 	// Handle connections in a new goroutine.
-// 	go handleRequest(conn)
-// }
+// 广播到指定的peer
+func (ts *TCPStream) BroadcastToPeer(modelID string, msg *p2p.BroadcastMsg, p *p2p.Peer) error {
+	peer := ts.peers.FindPeer(p.ID)
+	if peer == nil {
+		return nil
+	}
+	binMsg, err := ts.packageData(msg)
+	if err != nil {
+		return err
+	}
+
+	// 首先尝试获取已有连接
+	ts.RLock()
+	con := ts.peerCons[peer.ID]
+	ts.RUnlock()
+	if con != nil {
+		_, err := io.Copy(con, bytes.NewBuffer(binMsg))
+		if err != nil {
+			fmt.Printf("广播出错 err: %s\n", err.Error())
+			ts.Lock()
+			delete(ts.peerCons, msg.PeerID)
+			ts.Unlock()
+			con.Close()
+		}
+		return nil
+	}
+	//说明没有建立连接
+	tcpAddr, err := net.ResolveTCPAddr("tcp", peer.Address)
+	if err != nil {
+		return err
+	}
+	conn, err := net.DialTCP("tcp", nil, tcpAddr)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(conn, bytes.NewBuffer(binMsg))
+	if err != nil {
+		return err
+	}
+	ts.Lock()
+	ts.peerCons[peer.ID] = conn
+	ts.Unlock()
+	return nil
+}
+
+// 广播 除了指定的peer
+func (ts *TCPStream) BroadcastExceptPeer(modelID string, msg *p2p.BroadcastMsg, p *p2p.Peer) error {
+	peers := ts.peers.AllPeers()
+	for _, peer := range peers {
+		if peer.ID == p.ID {
+			continue
+		}
+		ts.BroadcastToPeer(modelID, msg, peer)
+	}
+	return nil
+}
+
+// 移除某个peer
+func (ts *TCPStream) RemovePeer(p *p2p.Peer) error {
+	ts.peers.RemovePeer(p.ID)
+	return nil
+}
+
+func (ts *TCPStream) RegisterOnReceive(modelID string, callBack p2p.OnReceive) error {
+	ts.Lock()
+	ts.msgCallBack[modelID] = callBack
+	ts.Unlock()
+	return nil
+}
+
+// 返回所有存在的peers
+func (ts *TCPStream) Peers() ([]*p2p.Peer, error) {
+	return ts.peers.AllPeers(), nil
+}

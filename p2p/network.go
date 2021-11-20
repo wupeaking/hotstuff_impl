@@ -23,6 +23,7 @@ type SwitcherI interface {
 type BroadcastMsg struct {
 	ModelID string `json:"model_id"`
 	Msg     []byte `json:"msg"`
+	PeerID  string `json:"peer_id"`
 }
 
 // OnReceive 注册接收消息回调
@@ -64,4 +65,12 @@ func (pb *PeerBooks) RemovePeer(id string) {
 	pb.Lock()
 	defer pb.Unlock()
 	delete(pb.sets, id)
+}
+
+func (pb *PeerBooks) AllPeers() []*Peer {
+	peers := make([]*Peer, 0, len(pb.sets))
+	for _, v := range pb.sets {
+		peers = append(peers, v)
+	}
+	return peers
 }
