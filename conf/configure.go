@@ -1,7 +1,9 @@
 package conf
 
 import (
+	"io"
 	"os"
+	"strings"
 
 	cryptogo "github.com/wupeakig/hotstuff_impl/crypto"
 	"github.com/wupeakig/hotstuff_impl/model"
@@ -27,13 +29,20 @@ type Cfg struct {
 	ListenAddr string `yaml:"listen_addr"`
 }
 
-func NewConfiguration() *Configuration {
-	fd, err := os.Open("./conf/config.yaml")
-	if err != nil {
-		panic(err)
+func NewConfiguration(c string) *Configuration {
+	var reader io.Reader
+	if c == "" {
+		fd, err := os.Open("./conf/config.yaml")
+		if err != nil {
+			panic(err)
+		}
+		reader = fd
+	} else {
+		reader = strings.NewReader(c)
 	}
+
 	cfg := Cfg{}
-	err = yaml.NewDecoder(fd).Decode(&cfg)
+	err := yaml.NewDecoder(reader).Decode(&cfg)
 	if err != nil {
 		panic(err)
 	}
