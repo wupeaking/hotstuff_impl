@@ -10,11 +10,13 @@ import (
 	"sync"
 
 	"github.com/wupeakig/hotstuff_impl/conf"
+	cryptogo "github.com/wupeakig/hotstuff_impl/crypto"
 	"github.com/wupeakig/hotstuff_impl/node"
 	"github.com/wupeakig/hotstuff_impl/p2p"
 )
 
 type TCPStream struct {
+	curPeer     *p2p.Peer
 	peers       *p2p.PeerBooks
 	listen      net.Listener
 	peerCons    map[string]io.ReadWriteCloser
@@ -29,11 +31,24 @@ func New(cfg *conf.Configuration) (*TCPStream, error) {
 		return nil, err
 	}
 	stream := &TCPStream{
-		listen: l,
-		peers:  p2p.NewPeerBooks(),
+		listen:      l,
+		peers:       p2p.NewPeerBooks(),
+		peerCons:    map[string]io.ReadWriteCloser{},
+		msgCallBack: map[string]p2p.OnReceive{},
 	}
+
+	curPeerID := cryptogo.Bytes2Hex(cfg.CurVeridier.PublickKey)
 	for _, peer := range cfg.Peers {
-		stream.peers.AddPeer(&peer)
+		if curPeerID == curPeerID {
+			stream.curPeer = &p2p.Peer{
+				ID:      peer.ID,
+				Address: peer.Address,
+			}
+		}
+		stream.peers.AddPeer(&p2p.Peer{
+			ID:      peer.ID,
+			Address: peer.Address,
+		})
 	}
 	return stream, nil
 }
@@ -78,7 +93,7 @@ func (ts *TCPStream) handleConnect(con net.Conn) {
 	msgCB := ts.msgCallBack[msg.ModelID]
 	ts.RUnlock()
 	if msgCB == nil {
-		fmt.Println("未知的model id")
+		fmt.Println("未知的model id : ", msg.ModelID)
 		con.Close()
 		return
 	}
@@ -119,7 +134,10 @@ var _ p2p.SwitcherI = &TCPStream{}
 func (ts *TCPStream) Broadcast(modelID string, msg *p2p.BroadcastMsg) error {
 	peers := ts.peers.AllPeers()
 	for _, peer := range peers {
-		ts.BroadcastToPeer(modelID, msg, peer)
+		err := ts.BroadcastToPeer(modelID, msg, peer)
+		if err != nil {
+			fmt.Printf("Broadcast err: %v\n", err)
+		}
 	}
 	return nil
 }
@@ -128,6 +146,9 @@ func (ts *TCPStream) Broadcast(modelID string, msg *p2p.BroadcastMsg) error {
 func (ts *TCPStream) BroadcastToPeer(modelID string, msg *p2p.BroadcastMsg, p *p2p.Peer) error {
 	peer := ts.peers.FindPeer(p.ID)
 	if peer == nil {
+		return nil
+	}
+	if peer.ID == ts.curPeer.ID {
 		return nil
 	}
 	binMsg, err := ts.packageData(msg)

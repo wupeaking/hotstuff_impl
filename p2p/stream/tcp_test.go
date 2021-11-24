@@ -3,6 +3,7 @@ package stream_test
 import (
 	"bytes"
 	"log"
+	"time"
 
 	"github.com/wupeakig/hotstuff_impl/conf"
 	"github.com/wupeakig/hotstuff_impl/p2p"
@@ -42,6 +43,7 @@ private_key: 0x3bf83bae9d0e5917687ee5039f0bdd13a91bff6a179688d8bea7ff3b69166e26
 	}
 
 	modelID := "test"
+	wait := false
 	msgCB := func(model string, msgBytes []byte, p *p2p.Peer) {
 		if model != modelID {
 			panic("model id err")
@@ -49,7 +51,10 @@ private_key: 0x3bf83bae9d0e5917687ee5039f0bdd13a91bff6a179688d8bea7ff3b69166e26
 		if !bytes.Equal(msgBytes, []byte{1, 2, 3, 4}) {
 			panic("msg err")
 		}
+		wait = true
 	}
+
+	tcpNode1.RegisterOnReceive(modelID, msgCB)
 
 	tcpNode2, err := stream.New(conf.NewConfiguration(cfg2))
 	if err != nil {
@@ -59,7 +64,23 @@ private_key: 0x3bf83bae9d0e5917687ee5039f0bdd13a91bff6a179688d8bea7ff3b69166e26
 		log.Fatal(err)
 	}
 
-	tcpNode1.RegisterOnReceive(modelID, msgCB)
+	err = tcpNode2.Broadcast(modelID,
+		&p2p.BroadcastMsg{ModelID: modelID, Msg: []byte{1, 2, 3, 4}})
+	if err != nil {
+		panic(err)
+	}
 
+	allpeers, _ := tcpNode2.Peers()
+	for i := range allpeers {
+		println("peers: ", allpeers[i].Address)
+	}
+
+	for {
+		time.Sleep(1 * time.Second)
+		println("wait-----")
+		if wait {
+			break
+		}
+	}
 	// Output:
 }
