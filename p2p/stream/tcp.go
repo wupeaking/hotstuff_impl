@@ -27,6 +27,7 @@ type TCPStream struct {
 // todo::
 func New(cfg *conf.Configuration) (*TCPStream, error) {
 	l, err := net.Listen("tcp", cfg.ListenAddr)
+	fmt.Println("listen addr: ", cfg.ListenAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +40,7 @@ func New(cfg *conf.Configuration) (*TCPStream, error) {
 
 	curPeerID := cryptogo.Bytes2Hex(cfg.CurVeridier.PublickKey)
 	for _, peer := range cfg.Peers {
-		if curPeerID == curPeerID {
+		if curPeerID == peer.ID {
 			stream.curPeer = &p2p.Peer{
 				ID:      peer.ID,
 				Address: peer.Address,
@@ -93,7 +94,7 @@ func (ts *TCPStream) handleConnect(con net.Conn) {
 	msgCB := ts.msgCallBack[msg.ModelID]
 	ts.RUnlock()
 	if msgCB == nil {
-		fmt.Println("未知的model id : ", msg.ModelID)
+		fmt.Printf("未知的model id : %s, peer: %s, address: %s", msg.ModelID, ts.curPeer.ID, ts.curPeer.Address)
 		con.Close()
 		return
 	}
@@ -149,6 +150,7 @@ func (ts *TCPStream) BroadcastToPeer(modelID string, msg *p2p.BroadcastMsg, p *p
 		return nil
 	}
 	if peer.ID == ts.curPeer.ID {
+		println("本机节点 不广播......", ts.curPeer.ID)
 		return nil
 	}
 	binMsg, err := ts.packageData(msg)
